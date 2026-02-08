@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Full-Stack Registration</title>
+    <link rel="stylesheet" href="style.css" />
+    <script defer src="script.js"></script>
+</head>
+<body>
+    <div class="site-header">
+     
+           <h1>Full Stack Registration Fall 2026</h1>
+           Please fill out your information to register for the Full Stack Course
+    </div>
+
+    <div class="forms">
+        <div class="prof-section">
+            <h2>Meet the Prof</h2>
+            <img src="prof.jpeg" alt="Professor Image" class="prof-img">
+        </div>
+        <form class="form" action="page2.html" method="GET">
+            <div class="grid-2">
+
+            <label class="field">
+              <span>Full Name</span>
+              <input name="fullName" type="text"  required />
+            </label>
+             <label class="field">
+              <span>Email ID</span>
+              <input name="email" type="email"  pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.com$" title="Please enter a valid email ending in .com" required />
+            </label>
+             <label class="field">
+              <span>Major </span>
+              <input name="major" type="text"  required />
+            </label>
+            <label class="field">
+              <span>Student ID</span>
+              <input name="studentId" type="number"  required />
+            </label>
+            <label class="field full-width">
+              <span>Why are you interested in this course?</span>
+              <textarea name="interest" placeholder="Tell us why you want to join..." required></textarea>
+            </label>
+            
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn submit-btn">Submit</button>
+                <button type="reset" class="btn reset-btn">Reset</button>
+            </div>
+        </form>
+    </div>
+    <button id="theme-toggle" class="theme-toggle-btn" title="Toggle Dark/Light Mode">🌓 </button>
+</body>
+</html>
