@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 'Major': params.get('major'),
                 'Student ID': params.get('studentId'),
                 'Why the Interest?': params.get('interest'),
-                'Registration ID': 'REG-' + Math.floor(1000 + Math.random() * 900)
+                'Registration ID': 'REG-' + Math.floor(100000 + Math.random() * 900000)
             };
 
             for (const [key, value] of Object.entries(data)) {
