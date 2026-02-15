@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dog Breed Viewer</title>
+    <link rel="stylesheet" href="dogs.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Dog Breed Viewer</h1>
+        <div class="search-container">
+            <input type="text" id="breedInput" list="breeds" placeholder="Type a dog breed...">
+            <datalist id="breeds"></datalist>
+            <button id="showImagesBtn">Show Images</button>
+        </div>
+        <div id="statusMessage"></div>
+        <div id="imageContainer"></div>
+    </div>
+    <script src="dogs.js"></script>
+</body>
+</html>
