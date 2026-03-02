@@ -8,11 +8,14 @@
 </head>
 <body>
     <h1>Lab 5 - NeDB Express</h1>
-    <textarea id="jsonInput" placeholder=' Inser Json Text like this:{"make":"tesla","model":"3"}'></textarea>
-    <div class="buttons">
-        <button id="insertBtn">Insert</button>
-        <button id="searchBtn">Search</button>
-    </div>
+    <h3>Insert Document</h3>
+    <textarea id="insertInput" placeholder='{"make":"tesla","model":"3","type":"sedan","msrp":44000}'></textarea>
+    <button id="insertBtn">Insert</button>
+
+    <h3>Search Documents</h3>
+    <textarea id="searchInput" placeholder='{"make":"tesla"}'></textarea>
+    <button id="searchBtn">Search</button>
+
     <h2>Results:</h2>
     <div id="results"></div>
 
