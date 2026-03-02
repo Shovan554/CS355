@@ -1,0 +1,5 @@
+body { font-family: sans-serif; margin: 2rem; }
+textarea { width: 100%; height: 100px; display: block; margin-bottom: 1rem; }
+.buttons { margin-bottom: 1rem; }
+#results { border: 1px solid #ccc; padding: 1rem; white-space: pre-wrap; background: #f9f9f9; min-height: 50px; }
+.error { color: red; }
