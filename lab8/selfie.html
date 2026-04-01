@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Take a Selfie</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; }
+        video { border: 2px solid #333; border-radius: 8px; max-width: 100%; height: auto; display: block; margin: 0 auto 20px auto; }
+        button { padding: 12px 24px; font-size: 16px; cursor: pointer; border: none; border-radius: 4px; background: #007bff; color: white; }
+    </style>
+</head>
+<body>
+    <h1>Take a Selfie and Save</h1>
+    <video id="videoElement" autoplay></video>
+    <button id="captureButton">Save Selfie</button>
+
+    <script>
+        const videoElement = document.getElementById('videoElement');
+        const captureButton = document.getElementById('captureButton');
+
+        navigator.mediaDevices
+            .getUserMedia({ video: true, audio: false })
+            .then(stream => videoElement.srcObject = stream)
+            .catch(err => console.error("Error accessing camera: ", err));
+
+        captureButton.addEventListener('click', () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 400;
+            canvas.height = 300;
+            canvas.getContext('2d').drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+            const downloadLink = document.createElement('a');
+            downloadLink.download = 'selfie.png';
+            downloadLink.href = canvas.toDataURL('image/png');
+            downloadLink.click();
+        });
+    </script>
+</body>
+</html>

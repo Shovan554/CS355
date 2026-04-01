@@ -1,0 +1,89 @@
+!<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Image Editor</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        button { padding: 8px 16px; cursor: pointer; }
+        #fileNameInput { padding: 8px; margin-bottom: 10px; width: 500px; box-sizing: border-box; }
+        canvas { border: 1px solid #aaa; border-radius: 4px; display: block; background: #fff; cursor: crosshair; }
+    </style>
+</head>
+<body>
+    <button id="loadBtn">Load</button>
+    <button id="saveBtn">Save</button>
+    <hr>
+    <input id="fileNameInput" placeholder="File name">
+    <br>
+    <canvas id="fileContentInput" width="500" height="500"></canvas>
+
+    <script>
+        const canvas = document.getElementById('fileContentInput');
+        const ctx = canvas.getContext('2d');
+        const fileNameInput = document.getElementById('fileNameInput');
+        const loadBtn = document.getElementById('loadBtn');
+        const saveBtn = document.getElementById('saveBtn');
+
+        var draw = false;
+        function drawCircle(e) {
+            if (draw) {
+                ctx.beginPath();
+                ctx.arc(e.offsetX, e.offsetY, draw, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
+        canvas.addEventListener('mousedown', () => {
+            ctx.fillStyle = `rgba(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255},0.2)`;
+            draw = 10 + Math.random() * 20;
+        });
+        canvas.addEventListener('mouseup', () => draw = false);
+        canvas.addEventListener('mouseleave', () => draw = false);
+        canvas.addEventListener('mousemove', drawCircle);
+
+        saveBtn.addEventListener('click', async () => {
+            try {
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: fileNameInput.value || 'untitled.png',
+                    types: [{
+                        description: 'PNG Image',
+                        accept: { 'image/png': ['.png'] },
+                    }],
+                });
+                const stream = await handle.createWritable();
+                await stream.write(blob);
+                await stream.close();
+            } catch (err) {
+                console.error(err);
+            }
+        });
+
+        loadBtn.addEventListener('click', () => {
+            const loadFile = document.createElement('input');
+            loadFile.type = 'file';
+            loadFile.accept = 'image/*';
+            loadFile.addEventListener('change', e => {
+                if (loadFile.files.length > 0) {
+                    const file = loadFile.files[0];
+                    const fileName = file.name;
+                    const fr = new FileReader();
+                    fr.onload = function () {
+                        const img = new Image();
+                        img.onload = function () {
+                            const ratio = img.width / img.height;
+                            canvas.width = 500;
+                            canvas.height = 500 / ratio;
+                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        }
+                        img.src = fr.result;
+                        fileNameInput.value = fileName;
+                    }
+                    fr.readAsDataURL(file);
+                }
+            });
+            loadFile.click();
+        });
+    </script>
+</body>
+</html>

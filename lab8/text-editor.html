@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Text Editor</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; max-width: 800px;back }
+        button { padding: 8px ;16px; cursor: pointer; }
+        #fileNameInput { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; }
+        #fileContentInput { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <button id="loadBtn">Load</button>
+    <button id="saveBtn">Save</button>
+    <hr>
+    <input id="fileNameInput" placeholder="File name">
+    <br>
+    <textarea id="fileContentInput" cols="60" rows="30" placeholder="File content"></textarea>
+
+    <script>
+        const loadBtn = document.getElementById('loadBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const fileNameInput = document.getElementById('fileNameInput');
+        const fileContentInput = document.getElementById('fileContentInput');
+
+        saveBtn.addEventListener('click', async () => {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: fileNameInput.value || 'untitled.txt',
+                    types: [{
+                        description: 'Text Files',
+                        accept: { 'text/plain': ['.txt', '.md', '.text'] },
+                    }],
+                });
+                const writable = await handle.createWritable();
+                await writable.write(fileContentInput.value);
+                await writable.close();
+            } catch (err) {
+                console.error(err);
+            }
+        });
+
+        loadBtn.addEventListener('click', () => {
+            const loadFile = document.createElement('input');
+            loadFile.type = 'file';
+            loadFile.accept = '.txt, .md, .text';
+            loadFile.addEventListener('change', e => {
+                if (loadFile.files.length > 0) {
+                    const file = loadFile.files[0];
+                    const fileName = file.name;
+                    const fr = new FileReader();
+                    fr.onload = function () {
+                        fileNameInput.value = fileName;
+                        fileContentInput.value = fr.result;
+                    }
+                    fr.readAsText(file);
+                }
+            });
+            loadFile.click();
+        });
+    </script>
+</body>
+</html>
