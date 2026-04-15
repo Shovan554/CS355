@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ping — Meeting</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+
+  <!-- Socket.io (served by your Express server automatically) -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <!-- PeerJS from CDN -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+  <!-- Framer Motion UMD -->
+  <script src="https://cdn.jsdelivr.net/npm/framer-motion@11/dist/framer-motion.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #240b36;
+      --surface: rgba(255,255,255,0.05);
+      --surface2: rgba(255,255,255,0.08);
+      --border: rgba(255,255,255,0.08);
+      --accent: #c31432;
+      --accent2: #00e5c0;
+      --danger: #ff4d6d;
+      --text: #f0f2ff;
+      --muted: #8892aa;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; overflow: hidden; }
+
+    /* Orbs */
+    .orb { position: fixed; border-radius: 50%; filter: blur(130px); opacity: 0.12; pointer-events: none; z-index: 0; }
+    .orb-1 { width: 700px; height: 700px; background: var(--accent); top: -250px; left: -200px; animation: drift 20s ease-in-out infinite alternate; }
+    .orb-2 { width: 500px; height: 500px; background: var(--accent2); bottom: -150px; right: -100px; animation: drift 25s ease-in-out infinite alternate-reverse; }
+    @keyframes drift { from { transform: translate(0,0); } to { transform: translate(60px, 40px); } }
+
+    /* ── App shell ── */
+    #app {
+      position: relative;
+      z-index: 1;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(36,11,54,0.6);
+      backdrop-filter: blur(20px);
+      flex-shrink: 0;
+    }
+
+    .logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1.4rem;
+      letter-spacing: -1px;
+      background: linear-gradient(135deg, var(--text), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .room-id-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 0.35rem 0.9rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-family: 'DM Sans', monospace;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .room-id-badge:hover { border-color: var(--accent); color: var(--text); }
+    .room-id-badge .dot {
+      width: 6px; height: 6px;
+      background: var(--accent2);
+      border-radius: 50%;
+      animation: pulse-dot 2s ease infinite;
+    }
+    @keyframes pulse-dot {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.7); }
+    }
+
+    .header-actions { display: flex; gap: 0.5rem; }
+
+    /* ── Invite button ── */
+    .btn-invite {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      padding: 0.5rem 1.1rem;
+      background: linear-gradient(135deg, var(--accent), #240b36);
+      color: #fff;
+      border: none; border-radius: 100px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.85rem; font-weight: 500;
+      cursor: pointer;
+      box-shadow: 0 3px 18px rgba(195,20,50,0.35);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .btn-invite:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(195,20,50,0.5); }
+    .btn-invite:active { transform: scale(0.97); }
+
+    /* ── Video grid ── */
+    #video-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+      padding: 14px;
+      overflow-y: auto;
+      align-content: start;
+    }
+
+    /* Each video tile */
+    .video-tile {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      aspect-ratio: 16/9;
+
+      /* Entry animation */
+      animation: tileIn 0.45s cubic-bezier(0.22,1,0.36,1) both;
+    }
+
+    @keyframes tileIn {
+      from { opacity: 0; transform: scale(0.92) translateY(16px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .video-tile video {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+      border-radius: 16px;
+    }
+
+    /* Muted / selfie indicator */
+    .tile-label {
+      position: absolute;
+      bottom: 10px; left: 12px;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(6px);
+      padding: 0.25rem 0.65rem;
+      border-radius: 100px;
+      font-size: 0.75rem;
+      color: #fff;
+      letter-spacing: 0.02em;
+    }
+
+    /* Camera-off placeholder */
+    .cam-off-placeholder {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 0.5rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .cam-off-placeholder .avatar {
+      width: 64px; height: 64px;
+      background: var(--surface2);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.8rem;
+    }
+
+    /* ── Controls bar ── */
+    #controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border);
+      background: rgba(36,11,54,0.7);
+      backdrop-filter: blur(20px);
+      flex-shrink: 0;
+    }
+
+    .ctrl-btn {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      border: none;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      font-size: 1.1rem;
+      transition: transform 0.15s, background 0.2s, box-shadow 0.2s;
+    }
+    .ctrl-btn:active { transform: scale(0.93); }
+
+    .ctrl-btn.active {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .ctrl-btn.active:hover {
+      background: rgba(255,255,255,0.12);
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.06);
+    }
+
+    .ctrl-btn.muted {
+      background: rgba(255,77,109,0.15);
+      border: 1px solid rgba(255,77,109,0.3);
+      color: var(--danger);
+    }
+    .ctrl-btn.muted:hover {
+      background: rgba(255,77,109,0.25);
+    }
+
+    /* Leave button — larger, danger */
+    .ctrl-btn.leave {
+      background: var(--danger);
+      color: #fff;
+      width: 56px; height: 56px;
+      box-shadow: 0 4px 20px rgba(255,77,109,0.4);
+    }
+    .ctrl-btn.leave:hover {
+      box-shadow: 0 6px 28px rgba(255,77,109,0.6);
+      transform: scale(1.05);
+    }
+
+    /* ── Participant count chip ── */
+    #participant-count {
+      font-size: 0.8rem;
+      color: var(--muted);
+      padding: 0 1rem;
+    }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 6rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: rgba(0,229,192,0.12);
+      border: 1px solid rgba(0,229,192,0.25);
+      color: var(--accent2);
+      padding: 0.6rem 1.3rem;
+      border-radius: 100px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      backdrop-filter: blur(12px);
+      transition: transform 0.35s cubic-bezier(0.22,1,0.36,1), opacity 0.3s;
+      opacity: 0;
+      z-index: 999;
+      white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    /* ── Ripple on tile entry ── */
+    @keyframes ripple {
+      from { box-shadow: 0 0 0 0 rgba(195,20,50,0.4); }
+      to   { box-shadow: 0 0 0 18px rgba(195,20,50,0); }
+    }
+    .video-tile.new { animation: tileIn 0.45s cubic-bezier(0.22,1,0.36,1) both, ripple 0.8s ease-out 0.2s 1; }
+
+    /* ── Empty state ── */
+    #empty-state {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.8rem;
+      color: var(--muted);
+      pointer-events: none;
+    }
+    #empty-state .icon { font-size: 3rem; opacity: 0.3; }
+    #empty-state p { font-size: 0.9rem; opacity: 0.5; }
+
+    /* ── Leave confirmation modal ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .modal-overlay.show {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .modal-card {
+      background: #1a0a2e;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2rem 2.4rem;
+      width: min(380px, 90vw);
+      text-align: center;
+      transform: scale(0.92) translateY(10px);
+      transition: transform 0.3s cubic-bezier(0.22,1,0.36,1);
+    }
+    .modal-overlay.show .modal-card {
+      transform: scale(1) translateY(0);
+    }
+    .modal-icon {
+      margin-bottom: 1rem;
+    }
+    .modal-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.4rem;
+    }
+    .modal-desc {
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin-bottom: 1.6rem;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+    .modal-btn {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+    }
+    .modal-btn:active { transform: scale(0.97); }
+    .modal-btn-cancel {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .modal-btn-cancel:hover {
+      background: rgba(255,255,255,0.12);
+    }
+    .modal-btn-leave {
+      background: var(--danger);
+      color: #fff;
+      box-shadow: 0 4px 18px rgba(255,77,109,0.35);
+    }
+    .modal-btn-leave:hover {
+      box-shadow: 0 6px 24px rgba(255,77,109,0.55);
+      transform: translateY(-1px);
+    }
+
+    /* ── Page entry animations ── */
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeScale {
+      from { opacity: 0; transform: scale(0.95); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    header {
+      opacity: 0;
+      animation: slideDown 0.6s cubic-bezier(0.22,1,0.36,1) 0.1s forwards;
+    }
+    #video-grid {
+      opacity: 0;
+      animation: fadeScale 0.7s cubic-bezier(0.22,1,0.36,1) 0.3s forwards;
+    }
+    #controls {
+      opacity: 0;
+      animation: slideUp 0.6s cubic-bezier(0.22,1,0.36,1) 0.5s forwards;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+
+  <div id="app">
+
+    <!-- Header -->
+    <header>
+      <div class="logo">Ping</div>
+
+      <div class="room-id-badge" id="roomBadge" title="Click to copy room link">
+        <span class="dot"></span>
+        <span id="roomIdLabel">Loading...</span>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn-invite" id="inviteBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+          Invite
+        </button>
+      </div>
+    </header>
+
+    <!-- Video grid -->
+    <div id="video-grid" style="position:relative;">
+      <div id="empty-state">
+        <div class="icon">&#128225;</div>
+        <p>Waiting for others to join...</p>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div id="controls">
+      <button class="ctrl-btn active" id="muteBtn" title="Mute / Unmute">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </button>
+      <button class="ctrl-btn active" id="camBtn" title="Camera on / off">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+      </button>
+      <span id="participant-count">1 participant</span>
+      <button class="ctrl-btn leave" id="leaveBtn" title="Leave meeting">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 2.59 3.4z"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- Leave confirmation modal -->
+  <div id="leaveModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 2.59 3.4z"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+      </div>
+      <h3 class="modal-title">Leave meeting?</h3>
+      <p class="modal-desc">You'll be disconnected from all participants.</p>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-cancel" id="leaveCancel">Cancel</button>
+        <button class="modal-btn modal-btn-leave" id="leaveConfirm">Leave</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+  (async () => {
+    // ── Room ID from URL ────────────────────────────────────
+    const roomId = window.location.pathname.replace(/^\//, '');
+    if (!roomId) { window.location.href = '/'; return; }
+
+    document.getElementById('roomIdLabel').textContent = roomId.slice(0,8) + '...';
+    document.title = `Ping — ${roomId.slice(0,8)}`;
+
+    // ── State ───────────────────────────────────────────────
+    let isMuted = false;
+    let isCamOff = false;
+    let myStream = null;
+    const peers = {}; // peerId → MediaConnection
+    let participantCount = 1;
+
+    // ── Media ───────────────────────────────────────────────
+    try {
+      myStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    } catch (err) {
+      showToast('Camera/mic permission denied');
+      myStream = new MediaStream(); // continue without media
+    }
+
+    addVideoTile(myStream, 'You', true);
+    updateCount();
+
+    // ── PeerJS ──────────────────────────────────────────────
+    const peer = new Peer({
+      host: window.location.hostname,
+      port: window.location.port || (location.protocol === 'https:' ? 443 : 80),
+      path: '/peerjs',
+    });
+
+    peer.on('open', (peerId) => {
+      console.log('[peer] My ID:', peerId);
+
+      // Tell server: I joined room X with peerID
+      const socket = io();
+
+      socket.emit('join-room', roomId, peerId);
+
+      // ── Someone else joined → call them ──────────────────
+      socket.on('user-connected', (remotePeerId) => {
+        console.log('[socket] user-connected:', remotePeerId);
+        showToast('Someone joined the room');
+        callPeer(remotePeerId);
+      });
+
+      // ── Someone left ─────────────────────────────────────
+      socket.on('user-disconnected', (remotePeerId) => {
+        console.log('[socket] user-disconnected:', remotePeerId);
+        if (peers[remotePeerId]) {
+          peers[remotePeerId].close();
+          delete peers[remotePeerId];
+        }
+        removeTile(remotePeerId);
+        participantCount = Math.max(1, participantCount - 1);
+        updateCount();
+        showToast('Participant left');
+      });
+    });
+
+    // ── Answer incoming calls ─────────────────────────────
+    peer.on('call', (call) => {
+      call.answer(myStream);
+      call.on('stream', (remoteStream) => {
+        if (!document.getElementById(`tile-${call.peer}`)) {
+          addVideoTile(remoteStream, 'Peer', false, call.peer);
+          peers[call.peer] = call;
+          participantCount++;
+          updateCount();
+        }
+      });
+      call.on('close', () => { removeTile(call.peer); });
+    });
+
+    peer.on('error', (err) => {
+      console.error('[peer error]', err);
+      showToast('Connection error — check console');
+    });
+
+    // ── Call a remote peer ────────────────────────────────
+    function callPeer(remotePeerId) {
+      const call = peer.call(remotePeerId, myStream);
+      peers[remotePeerId] = call;
+      call.on('stream', (remoteStream) => {
+        if (!document.getElementById(`tile-${remotePeerId}`)) {
+          addVideoTile(remoteStream, 'Peer', false, remotePeerId);
+          participantCount++;
+          updateCount();
+        }
+      });
+      call.on('close', () => { removeTile(remotePeerId); });
+    }
+
+    // ── Add video tile ────────────────────────────────────
+    function addVideoTile(stream, label, isLocal, id) {
+      const grid = document.getElementById('video-grid');
+      const emptyState = document.getElementById('empty-state');
+      if (emptyState) emptyState.remove();
+
+      const tileId = isLocal ? 'tile-local' : `tile-${id}`;
+      if (document.getElementById(tileId)) return;
+
+      const tile = document.createElement('div');
+      tile.className = 'video-tile new';
+      tile.id = tileId;
+
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.autoplay = true;
+      video.playsInline = true;
+      if (isLocal) { video.muted = true; video.style.transform = 'scaleX(-1)'; }
+
+      const lbl = document.createElement('div');
+      lbl.className = 'tile-label';
+      lbl.textContent = isLocal ? 'You' : label;
+
+      tile.appendChild(video);
+      tile.appendChild(lbl);
+      grid.appendChild(tile);
+
+      // Remove "new" class after animation
+      tile.addEventListener('animationend', () => tile.classList.remove('new'), { once: true });
+    }
+
+    // ── Remove tile ───────────────────────────────────────
+    function removeTile(id) {
+      const tile = document.getElementById(`tile-${id}`);
+      if (!tile) return;
+      tile.style.transition = 'opacity 0.3s, transform 0.3s';
+      tile.style.opacity = '0';
+      tile.style.transform = 'scale(0.9)';
+      setTimeout(() => tile.remove(), 320);
+    }
+
+    // ── Controls ──────────────────────────────────────────
+    const micOnIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`;
+    const micOffIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.13 1.49-.35 2.17"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`;
+    const camOnIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>`;
+    const camOffIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+
+    document.getElementById('muteBtn').addEventListener('click', () => {
+      isMuted = !isMuted;
+      myStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
+      const btn = document.getElementById('muteBtn');
+      btn.innerHTML = isMuted ? micOffIcon : micOnIcon;
+      btn.className = `ctrl-btn ${isMuted ? 'muted' : 'active'}`;
+      showToast(isMuted ? 'Muted' : 'Unmuted');
+    });
+
+    document.getElementById('camBtn').addEventListener('click', () => {
+      isCamOff = !isCamOff;
+      myStream.getVideoTracks().forEach(t => t.enabled = !isCamOff);
+      const btn = document.getElementById('camBtn');
+      btn.innerHTML = isCamOff ? camOffIcon : camOnIcon;
+      btn.className = `ctrl-btn ${isCamOff ? 'muted' : 'active'}`;
+      showToast(isCamOff ? 'Camera off' : 'Camera on');
+    });
+
+    document.getElementById('leaveBtn').addEventListener('click', () => {
+      document.getElementById('leaveModal').classList.add('show');
+    });
+
+    document.getElementById('leaveConfirm').addEventListener('click', () => {
+      peer.destroy();
+      window.location.href = '/';
+    });
+
+    document.getElementById('leaveCancel').addEventListener('click', () => {
+      document.getElementById('leaveModal').classList.remove('show');
+    });
+
+    // ── Invite / copy link ────────────────────────────────
+    const inviteUrl = `${window.location.origin}/${roomId}`;
+
+    document.getElementById('inviteBtn').addEventListener('click', copyInvite);
+    document.getElementById('roomBadge').addEventListener('click', copyInvite);
+
+    async function copyInvite() {
+      const btn = document.getElementById('inviteBtn');
+      try {
+        await navigator.clipboard.writeText(inviteUrl);
+        btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg> Copied!`;
+        showToast('Invite link copied!');
+        setTimeout(() => {
+          btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> Invite`;
+        }, 2000);
+      } catch {
+        prompt('Copy this invite link:', inviteUrl);
+      }
+    }
+
+    // ── Participant count ─────────────────────────────────
+    function updateCount() {
+      const el = document.getElementById('participant-count');
+      el.textContent = `${participantCount} participant${participantCount !== 1 ? 's' : ''}`;
+    }
+
+    // ── Toast ─────────────────────────────────────────────
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(t._timer);
+      t._timer = setTimeout(() => t.classList.remove('show'), 2800);
+    }
+
+  })();
+  </script>
+
+</body>
+</html>
